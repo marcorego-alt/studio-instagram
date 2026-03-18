@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#110a06"/>
+<title>Studio · Dr. Marco Rego</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+:root{
+  --bg:#110a06;--bg2:#160d08;--s1:#1e1208;--s2:#251608;
+  --border:#2d1c0e;--border2:#3a2412;
+  --text:#f0e6d8;--text2:#b8a090;--text3:#7a5a42;--text4:#4a3020;
+  --amber:#f59e0b;--coral:#ff6b35;--gold:#d4a044;
+  --green:#34d399;--red:#f87171;--blue:#60a5fa;
+  --grad:linear-gradient(135deg,#f59e0b,#ff6b35);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body,#root{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#3a2412;border-radius:2px}
+input,select,textarea{
+  background:var(--s1)!important;border:1.5px solid var(--border2)!important;
+  color:var(--text)!important;border-radius:10px!important;
+  padding:13px 14px!important;font-family:'DM Sans',sans-serif!important;
+  font-size:15px!important;width:100%!important;outline:none!important;
+  transition:border-color .2s,box-shadow .2s!important;
+  -webkit-appearance:none;appearance:none;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--amber)!important;box-shadow:0 0 0 3px rgba(245,158,11,.12)!important}
+input::placeholder,textarea::placeholder{color:var(--text4)!important}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a5a42' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;padding-right:38px!important}
+select option{background:var(--s1)}
+label{display:block;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.fade-up{animation:fadeUp .35s ease both}
+.spin{animation:spin .8s linear infinite}
+.btn-primary{
+  width:100%;background:var(--grad);color:#1a0800;
+  border:none;padding:16px;border-radius:12px;
+  font-size:14px;font-weight:700;font-family:'DM Sans',sans-serif;
+  letter-spacing:.06em;cursor:pointer;transition:opacity .2s,transform .15s;
+  text-transform:uppercase;
+}
+.btn-primary:active{transform:scale(.97);opacity:.85}
+.btn-primary:disabled{opacity:.3}
+.btn-ghost{
+  background:transparent;color:var(--text3);
+  border:1.5px solid var(--border2);padding:12px 18px;
+  border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.btn-ghost:active{background:var(--s1)}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.05em;cursor:pointer;transition:all .15s;white-space:nowrap;border:1.5px solid transparent}
+.chip-active{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:var(--amber)}
+.chip-idle{background:var(--s1);border-color:var(--border2);color:var(--text3)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+
+// ── API ──────────────────────────────────────────────────────────────────────
+async function ai(messages,system,apiKey){
+  const r=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,system,messages}),
+  });
+  const d=await r.json();
+  if(d.error)throw new Error(d.error.message);
+  return d.content?.map(b=>b.text||"").join("")||"";
+}
+function parseJ(t){return JSON.parse(t.replace(/```json|```/g,"").trim())}
+
+// ── System prompt ────────────────────────────────────────────────────────────
+const SYS=`És um especialista em marketing digital médico para o Dr. Marco Rego, oftalmologista especialista em cirurgia refractiva (LASIK, Femto-LASIK, lentes multifocais, ICL) em Vila Nova de Gaia, Portugal.
+
+Perfil do médico:
+- Instagram: @dr.marcorego.oftalmologia
+- Facebook: "Dr Marco Rego Oftalmologista"
+- Website: www.marcorego.com
+- Especialidade: cirurgia refractiva (LASIK, Femto-LASIK, LASEK/PRK, ICL, lentes multifocais)
+- Objetivo: tornar-se a referência em cirurgia refractiva em Portugal
+- Público-alvo: adultos 25-50 anos com miopia/hipermetropia/astigmatismo, no Grande Porto
+
+Tom de voz: autoridade clínica mas acessível, empático, educativo, nunca sensacionalista. Português europeu (Portugal). Linguagem clara, sem jargão excessivo.
+
+Conteúdo NUNCA deve: prometer resultados garantidos, usar fotos de pacientes sem consentimento explícito, violar código deontológico médico português (OM), fazer comparações directas com concorrentes.
+
+Hashtags em português europeu + inglês técnico quando relevante.`;
+
+// ── Types & Data ─────────────────────────────────────────────────────────────
+const POST_TYPES=[
+  {id:"educativo",icon:"🎓",label:"Educativo",desc:"Explica um procedimento ou condição"},
+  {id:"mito",icon:"❌",label:"Mito vs Facto",desc:"Desmonta mitos comuns"},
+  {id:"bastidores",icon:"🏥",label:"Bastidores",desc:"Dia na clínica, equipamento, rotina"},
+  {id:"pergunta",icon:"❓",label:"Pergunta ao Dr.",desc:"Resposta a dúvida frequente"},
+  {id:"carrossel",icon:"📱",label:"Carrossel",desc:"Série de slides educativos"},
+  {id:"reels",icon:"🎬",label:"Reels / Vídeo",desc:"Script para vídeo curto"},
+  {id:"motivacao",icon:"✨",label:"Transformação",desc:"Impacto na vida do paciente"},
+  {id:"curiosidade",icon:"💡",label:"Curiosidade",desc:"Facto curioso sobre visão/olhos"},
+];
+
+const TOPICS=[
+  "LASIK","Femto-LASIK","ICL / Lentes Fácicas","Lentes Multifocais","Queratocone",
+  "Miopia","Hipermetropia","Astigmatismo","Recuperação pós-cirurgia","Vida sem óculos",
+  "Dry Eye / Olho Seco","Pentacam / Topografia","Candidatura a cirurgia","Cirurgia dos 40+",
+];
+
+const SCHEDULE=[
+  {day:"Seg",slots:["08:00","19:00"],theme:"Educativo / Semana nova"},
+  {day:"Ter",slots:["12:00"],theme:"Carrossel ou Reels"},
+  {day:"Qua",slots:["18:00","20:00"],theme:"Mito vs Facto"},
+  {day:"Qui",slots:["07:30","19:30"],theme:"Pergunta Frequente"},
+  {day:"Sex",slots:["12:00","17:00"],theme:"Bastidores / Transformação"},
+  {day:"Sáb",slots:["10:00"],theme:"Curiosidade / Inspiração"},
+  {day:"Dom",slots:[],theme:"Pausa ou Story leve"},
+];
+
+const HOOK_FORMULAS=[
+  {id:"problema",label:"Problema",tmpl:"Ainda usas óculos por isto? A maioria das pessoas não sabe que…"},
+  {id:"numero",label:"Número chocante",tmpl:"97% das pessoas com miopia são candidatos. E tu?"},
+  {id:"historia",label:"Mini-história",tmpl:"Tinha 28 anos, -5D e medo de operar. Hoje…"},
+  {id:"contraintuitivo",label:"Contraditório",tmpl:"O LASIK pode ser a opção mais segura que tens. Deixa-me explicar."},
+  {id:"pergunta",label:"Pergunta direta",tmpl:"Sabes qual é o maior mito sobre cirurgia ocular?"},
+  {id:"urgencia",label:"Curiosidade",tmpl:"Há uma coisa que o teu oftalmologista sabe mas raramente conta."},
+];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function copyText(t){
+  if(navigator.clipboard)navigator.clipboard.writeText(t);
+  else{const a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);}
+}
+function formatDate(d){return new Date(d).toLocaleDateString("pt-PT",{weekday:"short",day:"numeric",month:"short"})}
+function timeNow(){const n=new Date();return `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`}
+
+// ── Notification helper ──────────────────────────────────────────────────────
+function requestNotif(){
+  if(!("Notification" in window))return Promise.resolve("denied");
+  if(Notification.permission==="granted")return Promise.resolve("granted");
+  return Notification.requestPermission();
+}
+function scheduleNotif(title,body,ms){
+  requestNotif().then(p=>{
+    if(p==="granted")setTimeout(()=>new Notification(title,{body,icon:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👁</text></svg>"}),ms);
+  });
+}
+
+// ── API Key screen ────────────────────────────────────────────────────────────
+function APIScreen({onSave}){
+  const[k,setK]=useState("");const[show,setShow]=useState(false);
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",background:"radial-gradient(ellipse at top,#1e1208 0%,#110a06 60%)"}}>
+      <div style={{fontSize:48,marginBottom:16}}>✦</div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:700,color:"var(--text)",marginBottom:6,textAlign:"center"}}>Studio</div>
+      <div style={{fontSize:11,color:"var(--text3)",letterSpacing:".12em",textTransform:"uppercase",marginBottom:36}}>Dr. Marco Rego · Instagram</div>
+      <div style={{width:"100%",maxWidth:380,background:"var(--s1)",border:"1px solid var(--border2)",borderRadius:18,padding:"24px"}}>
+        <p style={{fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.65}}>Introduz a tua Anthropic API Key para activar o agente de conteúdo.</p>
+        <label>API Key</label>
+        <div style={{position:"relative",marginBottom:18}}>
+          <input type={show?"text":"password"} value={k} onChange={e=>setK(e.target.value)} placeholder="sk-ant-..." />
+          <button onClick={()=>setShow(!show)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:18,padding:4}}>{show?"🙈":"👁"}</button>
+        </div>
+        <button className="btn-primary" onClick={()=>k.trim()&&onSave(k.trim())} disabled={!k.trim()}>Activar Studio</button>
+        <p style={{fontSize:10,color:"var(--text4)",textAlign:"center",marginTop:12}}>Guardada localmente · Não partilhada</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab bar ──────────────────────────────────────────────────────────────────
+function TabBar({active,setActive}){
+  const tabs=[
+    {id:"criar",icon:"✦",label:"Criar"},
+    {id:"gancho",icon:"🪝",label:"Gancho"},
+    {id:"calendario",icon:"📅",label:"Agenda"},
+    {id:"biblioteca",icon:"📚",label:"Guardados"},
+  ];
+  return(
+    <div style={{display:"flex",background:"rgba(17,10,6,.97)",borderTop:"1px solid var(--border)",position:"fixed",bottom:0,left:0,right:0,zIndex:30,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>setActive(t.id)} style={{flex:1,padding:"12px 4px 10px",background:"transparent",border:"none",borderTop:`2px solid ${active===t.id?"var(--amber)":"transparent"}`,color:active===t.id?"var(--amber)":"var(--text3)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"all .15s"}}>
+          <span style={{fontSize:18}}>{t.icon}</span>
+          <span style={{fontSize:9,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase"}}>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Criar Post ────────────────────────────────────────────────────────────────
+function CriarTab({apiKey,onSave}){
+  const[type,setType]=useState(POST_TYPES[0].id);
+  const[topic,setTopic]=useState(TOPICS[0]);
+  const[topicCustom,setTopicCustom]=useState("");
+  const[angle,setAngle]=useState("");
+  const[result,setResult]=useState(null);
+  const[loading,setLoading]=useState(false);
+  const[copied,setCopied]=useState(false);
+  const[error,setError]=useState(null);
+
+  const selectedType=POST_TYPES.find(p=>p.id===type);
+  const finalTopic=topicCustom.trim()||topic;
+
+  const generate=async()=>{
+    setLoading(true);setError(null);setResult(null);
+    try{
+      const prompt=`Cria conteúdo para Instagram do tipo "${selectedType.label}" sobre "${finalTopic}".${angle?` Ângulo/contexto: ${angle}.`:""}
+
+Responde APENAS em JSON puro:
+{
+  "gancho": "primeira linha irresistível (max 2 linhas) que para o scroll",
+  "legenda": "legenda completa para Instagram, com emojis estratégicos, parágrafos curtos, call to action no final. Máx 2200 caracteres.",
+  "hashtags": "30 hashtags relevantes separadas por espaço, mistura PT+EN, do nicho ao geral",
+  "alt_text": "texto alternativo da imagem para acessibilidade",
+  "sugestao_visual": "descrição da imagem/visual ideal para acompanhar este post",
+  "melhor_hora": "dia da semana e hora ideal para publicar este tipo de conteúdo",
+  "story_ideias": ["ideia 1 de story relacionado","ideia 2","ideia 3"]
+}`;
+      const t=await ai([{role:"user",content:prompt}],SYS,apiKey);
+      setResult(parseJ(t));
+    }catch(e){setError("Erro ao gerar. Tenta novamente.")}
+    setLoading(false);
+  };
+
+  const handleCopy=(text)=>{copyText(text);setCopied(true);setTimeout(()=>setCopied(false),2000)};
+
+  const handleSave=()=>{
+    if(!result)return;
+    const saved=JSON.parse(localStorage.getItem("mr_posts")||"[]");
+    saved.unshift({id:Date.now(),topic:finalTopic,type:selectedType.label,icon:selectedType.icon,...result,savedAt:new Date().toISOString()});
+    localStorage.setItem("mr_posts",JSON.stringify(saved.slice(0,50)));
+    onSave();
+  };
+
+  return(
+    <div style={{padding:"20px 16px",paddingBottom:100}}>
+      {/* Type selector */}
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,marginBottom:18}}>
+        Criar Conteúdo
+      </div>
+
+      <label>Tipo de Post</label>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:18}}>
+        {POST_TYPES.map(p=>(
+          <button key={p.id} className={`chip ${type===p.id?"chip-active":"chip-idle"}`} onClick={()=>setType(p.id)}>
+            {p.icon} {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Topic */}
+      <label>Tema</label>
+      <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:10}}>
+        {TOPICS.map(t=>(
+          <button key={t} className={`chip ${topic===t&&!topicCustom?"chip-active":"chip-idle"}`} onClick={()=>{setTopic(t);setTopicCustom("");}}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <input value={topicCustom} onChange={e=>setTopicCustom(e.target.value)} placeholder="Ou escreve um tema personalizado…" style={{marginBottom:16}}/>
+
+      {/* Angle */}
+      <label>Ângulo / Contexto (opcional)</label>
+      <textarea value={angle} onChange={e=>setAngle(e.target.value)} placeholder={`ex: "foca no medo da operação e como ultrapassar" ou "dirigido a pais preocupados com miopia dos filhos"`} rows={2} style={{resize:"none",marginBottom:20}}/>
+
+      {error&&<div style={{background:"rgba(248,113,113,.08)",border:"1px solid rgba(248,113,113,.2)",borderRadius:10,padding:"12px",color:"var(--red)",fontSize:13,marginBottom:14}}>⚠ {error}</div>}
+
+      <button className="btn-primary" onClick={generate} disabled={loading}>
+        {loading
+          ?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            <span style={{width:16,height:16,border:"2px solid rgba(245,158,11,.3)",borderTopColor:"var(--amber)",borderRadius:"50%"}} className="spin"/>A criar conteúdo...
+          </span>
+          :`Gerar ${selectedType.icon} ${selectedType.label}`}
+      </button>
+
+      {/* Result */}
+      {result&&(
+        <div className="fade-up" style={{marginTop:22}}>
+          {/* Hook */}
+          <div style={{background:"linear-gradient(135deg,rgba(245,158,11,.12),rgba(255,107,53,.08))",border:"1.5px solid rgba(245,158,11,.25)",borderRadius:14,padding:"16px",marginBottom:12}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--amber)",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>🪝 Gancho</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontStyle:"italic",color:"var(--text)",lineHeight:1.45,marginBottom:10}}>{result.gancho}</div>
+            <button className="btn-ghost" style={{padding:"7px 14px",fontSize:11}} onClick={()=>handleCopy(result.gancho)}>Copiar</button>
+          </div>
+
+          {/* Caption */}
+          <div className="card">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",letterSpacing:".1em",textTransform:"uppercase"}}>📝 Legenda</div>
+              <button className="btn-ghost" style={{padding:"6px 12px",fontSize:11}} onClick={()=>handleCopy(result.legenda)}>{copied?"✓ Copiado":"Copiar"}</button>
+            </div>
+            <div style={{fontSize:13.5,color:"var(--text2)",lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:200,overflow:"auto"}}>{result.legenda}</div>
+          </div>
+
+          {/* Hashtags */}
+          <div className="card">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",letterSpacing:".1em",textTransform:"uppercase"}}>🏷 Hashtags</div>
+              <button className="btn-ghost" style={{padding:"6px 12px",fontSize:11}} onClick={()=>handleCopy(result.hashtags)}>Copiar</button>
+            </div>
+            <div style={{fontSize:11.5,color:"var(--text3)",lineHeight:1.8,fontFamily:"'DM Mono',monospace"}}>{result.hashtags}</div>
+          </div>
+
+          {/* Visual + Hour */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+            <div className="card" style={{margin:0}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",letterSpacing:".1em",textTransform:"uppercase",marginBottom:7}}>🖼 Visual</div>
+              <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.5}}>{result.sugestao_visual}</div>
+            </div>
+            <div className="card" style={{margin:0}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",letterSpacing:".1em",textTransform:"uppercase",marginBottom:7}}>⏰ Publicar</div>
+              <div style={{fontSize:13,color:"var(--amber)",fontWeight:600}}>{result.melhor_hora}</div>
+            </div>
+          </div>
+
+          {/* Story ideas */}
+          {result.story_ideias?.length>0&&(
+            <div className="card">
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",letterSpacing:".1em",textTransform:"uppercase",marginBottom:10}}>💬 Ideias para Stories</div>
+              {result.story_ideias.map((s,i)=>(
+                <div key={i} style={{fontSize:13,color:"var(--text2)",padding:"7px 0",borderBottom:i<result.story_ideias.length-1?"1px solid var(--border)":"none",display:"flex",gap:8}}>
+                  <span style={{color:"var(--amber)",flexShrink:0}}>{i+1}.</span>{s}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{display:"flex",gap:10,marginTop:6}}>
+            <button className="btn-primary" style={{flex:2}} onClick={()=>handleCopy(`${result.gancho}\n\n${result.legenda}\n\n${result.hashtags}`)}>
+              📋 Copiar Tudo
+            </button>
+            <button className="btn-ghost" style={{flex:1}} onClick={handleSave}>💾 Guardar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Gancho Generator ──────────────────────────────────────────────────────────
+function GanchoTab({apiKey}){
+  const[formula,setFormula]=useState(HOOK_FORMULAS[0].id);
+  const[topic,setTopic]=useState(TOPICS[0]);
+  const[ganchos,setGanchos]=useState(null);
+  const[loading,setLoading]=useState(false);
+  const[copied,setCopied]=useState(null);
+
+  const generate=async()=>{
+    setLoading(true);setGanchos(null);
+    const sel=HOOK_FORMULAS.find(f=>f.id===formula);
+    try{
+      const t=await ai([{role:"user",content:`Gera 6 ganchos (primeiras linhas que param o scroll) para Instagram usando a fórmula "${sel.label}" sobre o tema "${topic}". Médico oftalmologista cirurgião refractivo em Portugal.
+
+Responde APENAS JSON puro:
+{"ganchos":["gancho 1","gancho 2","gancho 3","gancho 4","gancho 5","gancho 6"]}`}],SYS,apiKey);
+      setGanchos(parseJ(t).ganchos);
+    }catch{}
+    setLoading(false);
+  };
+
+  return(
+    <div style={{padding:"20px 16px",paddingBottom:100}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,marginBottom:6}}>Gerador de Ganchos</div>
+      <p style={{fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.6}}>A primeira linha do post é tudo. Gera 6 opções e escolhe a melhor.</p>
+
+      <label>Fórmula</label>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:18}}>
+        {HOOK_FORMULAS.map(f=>(
+          <button key={f.id} onClick={()=>setFormula(f.id)} style={{
+            padding:"12px 14px",borderRadius:10,textAlign:"left",cursor:"pointer",
+            background:formula===f.id?"rgba(245,158,11,.1)":  "var(--s1)",
+            border:`1.5px solid ${formula===f.id?"rgba(245,158,11,.35)":"var(--border2)"}`,
+            transition:"all .15s",
+          }}>
+            <div style={{fontSize:12,fontWeight:600,color:formula===f.id?"var(--amber)":"var(--text)",marginBottom:3}}>{f.label}</div>
+            <div style={{fontSize:11,color:"var(--text3)",fontStyle:"italic"}}>"{f.tmpl}"</div>
+          </button>
+        ))}
+      </div>
+
+      <label>Tema</label>
+      <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:20}}>
+        {TOPICS.map(t=>(
+          <button key={t} className={`chip ${topic===t?"chip-active":"chip-idle"}`} onClick={()=>setTopic(t)}>{t}</button>
+        ))}
+      </div>
+
+      <button className="btn-primary" onClick={generate} disabled={loading}>
+        {loading?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><span style={{width:16,height:16,border:"2px solid rgba(245,158,11,.3)",borderTopColor:"var(--amber)",borderRadius:"50%"}} className="spin"/>A gerar...</span>:"Gerar 6 Ganchos"}
+      </button>
+
+      {ganchos&&(
+        <div className="fade-up" style={{marginTop:20}}>
+          {ganchos.map((g,i)=>(
+            <div key={i} style={{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px",marginBottom:10,cursor:"pointer"}} onClick={()=>{copyText(g);setCopied(i);}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontStyle:"italic",color:"var(--text)",lineHeight:1.45,flex:1}}>{g}</div>
+                <span style={{fontSize:18,flexShrink:0,marginTop:2}}>{copied===i?"✅":"📋"}</span>
+              </div>
+            </div>
+          ))}
+          <p style={{fontSize:11,color:"var(--text4)",textAlign:"center",marginTop:4}}>Toca para copiar</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Calendário ────────────────────────────────────────────────────────────────
+function CalendarioTab(){
+  const[notifOn,setNotifOn]=useState(Notification.permission==="granted");
+  const[reminders,setReminders]=useState(()=>JSON.parse(localStorage.getItem("mr_reminders")||"[]"));
+  const[newReminder,setNewReminder]=useState({day:"Seg",time:"09:00",note:""});
+  const[saved,setSaved]=useState(false);
+
+  const enableNotif=()=>{
+    requestNotif().then(p=>{
+      if(p==="granted"){setNotifOn(true);new Notification("Studio · Dr. Marco Rego",{body:"Notificações de publicação activadas! 📸"});}
+    });
+  };
+
+  const addReminder=()=>{
+    const r={...newReminder,id:Date.now()};
+    const list=[...reminders,r];
+    setReminders(list);
+    localStorage.setItem("mr_reminders",JSON.stringify(list));
+    setSaved(true);setTimeout(()=>setSaved(false),2000);
+  };
+
+  const removeReminder=id=>{
+    const list=reminders.filter(r=>r.id!==id);
+    setReminders(list);
+    localStorage.setItem("mr_reminders",JSON.stringify(list));
+  };
+
+  const dayOrder=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+
+  return(
+    <div style={{padding:"20px 16px",paddingBottom:100}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,marginBottom:6}}>Agenda de Publicações</div>
+      <p style={{fontSize:13,color:"var(--text2)",marginBottom:18,lineHeight:1.6}}>Horários recomendados para o teu público em Portugal.</p>
+
+      {/* Notification toggle */}
+      {!notifOn&&(
+        <div style={{background:"rgba(245,158,11,.08)",border:"1.5px solid rgba(245,158,11,.2)",borderRadius:12,padding:"14px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:24}}>🔔</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:2}}>Activar lembretes</div>
+            <div style={{fontSize:11,color:"var(--text3)"}}>Notificações quando for hora de publicar</div>
+          </div>
+          <button onClick={enableNotif} style={{background:"var(--grad)",border:"none",borderRadius:8,padding:"8px 14px",color:"#1a0800",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Activar</button>
+        </div>
+      )}
+
+      {/* Schedule grid */}
+      <div style={{marginBottom:22}}>
+        {SCHEDULE.map(d=>(
+          <div key={d.day} style={{display:"flex",gap:10,padding:"12px 0",borderBottom:"1px solid var(--border)",alignItems:"flex-start"}}>
+            <div style={{width:36,flexShrink:0,textAlign:"center"}}>
+              <div style={{fontSize:12,fontWeight:700,color:d.slots.length?"var(--amber)":"var(--text4)"}}>{d.day}</div>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,color:"var(--text2)",marginBottom:d.slots.length?6:0}}>{d.theme}</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {d.slots.map(s=>(
+                  <span key={s} style={{background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.25)",borderRadius:6,padding:"3px 9px",fontSize:11,fontFamily:"'DM Mono',monospace",color:"var(--amber)"}}>{s}</span>
+                ))}
+                {!d.slots.length&&<span style={{fontSize:11,color:"var(--text4)"}}>Sem publicação</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add reminder */}
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,marginBottom:14}}>+ Lembrete personalizado</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        <div><label>Dia</label>
+          <select value={newReminder.day} onChange={e=>setNewReminder(r=>({...r,day:e.target.value}))}>
+            {dayOrder.map(d=><option key={d}>{d}</option>)}
+          </select>
+        </div>
+        <div><label>Hora</label>
+          <input type="time" value={newReminder.time} onChange={e=>setNewReminder(r=>({...r,time:e.target.value}))}/>
+        </div>
+      </div>
+      <div style={{marginBottom:12}}><label>Nota</label>
+        <input value={newReminder.note} onChange={e=>setNewReminder(r=>({...r,note:e.target.value}))} placeholder="ex: Reels sobre LASIK"/>
+      </div>
+      <button className="btn-primary" style={{marginBottom:20}} onClick={addReminder}>{saved?"✓ Guardado!":"Guardar Lembrete"}</button>
+
+      {/* Saved reminders */}
+      {reminders.length>0&&(
+        <>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,marginBottom:12}}>Os teus lembretes</div>
+          {reminders.map(r=>(
+            <div key={r.id} style={{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:20}}>⏰</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--amber)"}}>{r.day} · {r.time}</div>
+                {r.note&&<div style={{fontSize:12,color:"var(--text2)",marginTop:2}}>{r.note}</div>}
+              </div>
+              <button onClick={()=>removeReminder(r.id)} style={{background:"none",border:"none",color:"var(--text4)",fontSize:18,cursor:"pointer",padding:4}}>✕</button>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Biblioteca ────────────────────────────────────────────────────────────────
+function BibliotecaTab(){
+  const[posts,setPosts]=useState(()=>JSON.parse(localStorage.getItem("mr_posts")||"[]"));
+  const[expanded,setExpanded]=useState(null);
+  const[copied,setCopied]=useState(null);
+
+  const remove=id=>{
+    const list=posts.filter(p=>p.id!==id);
+    setPosts(list);localStorage.setItem("mr_posts",JSON.stringify(list));
+    if(expanded===id)setExpanded(null);
+  };
+  const copy=(id,text)=>{copyText(text);setCopied(id);setTimeout(()=>setCopied(null),2000)};
+
+  if(!posts.length) return(
+    <div style={{padding:"60px 32px",textAlign:"center"}}>
+      <div style={{fontSize:48,marginBottom:16}}>📚</div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"var(--text2)",marginBottom:8}}>Biblioteca vazia</div>
+      <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.6}}>Cria conteúdo no separador <strong style={{color:"var(--amber)"}}>Criar</strong> e guarda aqui os posts que quiseres reutilizar.</div>
+    </div>
+  );
+
+  return(
+    <div style={{padding:"20px 16px",paddingBottom:100}}>
+      <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:18}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700}}>Biblioteca</div>
+        <span style={{fontSize:11,color:"var(--text3)"}}>{posts.length} posts</span>
+      </div>
+      {posts.map(p=>(
+        <div key={p.id} style={{background:"var(--s1)",border:`1px solid ${expanded===p.id?"var(--border2)":"var(--border)"}`,borderRadius:14,marginBottom:10,overflow:"hidden",transition:"border-color .15s"}}>
+          <div style={{padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:10}} onClick={()=>setExpanded(expanded===p.id?null:p.id)}>
+            <span style={{fontSize:22}}>{p.icon}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.topic}</div>
+              <div style={{fontSize:11,color:"var(--text3)"}}>{p.type} · {formatDate(p.savedAt)}</div>
+            </div>
+            <span style={{color:"var(--text4)",fontSize:16,transform:expanded===p.id?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span>
+          </div>
+          {expanded===p.id&&(
+            <div className="fade-up" style={{padding:"0 16px 16px",borderTop:"1px solid var(--border)"}}>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontStyle:"italic",color:"var(--text)",margin:"12px 0 8px",lineHeight:1.45}}>{p.gancho}</div>
+              <div style={{fontSize:12.5,color:"var(--text2)",lineHeight:1.65,maxHeight:120,overflow:"auto",marginBottom:10}}>{p.legenda}</div>
+              <div style={{fontSize:11,color:"var(--text3)",fontFamily:"'DM Mono',monospace",marginBottom:14}}>{p.hashtags}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn-ghost" style={{flex:2,padding:"9px"}} onClick={()=>copy(p.id,`${p.gancho}\n\n${p.legenda}\n\n${p.hashtags}`)}>
+                  {copied===p.id?"✓ Copiado":"📋 Copiar Tudo"}
+                </button>
+                <button onClick={()=>remove(p.id)} style={{flex:1,background:"rgba(248,113,113,.08)",border:"1.5px solid rgba(248,113,113,.15)",borderRadius:10,color:"var(--red)",fontSize:12,cursor:"pointer",padding:"9px"}}>Apagar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────────────────────
+function App(){
+  const[apiKey,setApiKey]=useState(()=>localStorage.getItem("mr_ig_key")||"");
+  const[tab,setTab]=useState("criar");
+  const[savedFlag,setSavedFlag]=useState(0);
+
+  const saveKey=k=>{localStorage.setItem("mr_ig_key",k);setApiKey(k)};
+
+  if(!apiKey)return<APIScreen onSave={saveKey}/>;
+
+  const content={
+    criar:<CriarTab apiKey={apiKey} onSave={()=>setSavedFlag(f=>f+1)}/>,
+    gancho:<GanchoTab apiKey={apiKey}/>,
+    calendario:<CalendarioTab/>,
+    biblioteca:<BibliotecaTab key={savedFlag}/>,
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:"radial-gradient(ellipse at top,#1a0f08 0%,#110a06 50%)"}}>
+      {/* Header */}
+      <div style={{background:"rgba(17,10,6,.97)",borderBottom:"1px solid var(--border)",padding:"calc(16px + env(safe-area-inset-top,0px)) 20px 14px",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:20,backdropFilter:"blur(14px)"}}>
+        <div style={{width:36,height:36,borderRadius:8,background:"var(--grad)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#1a0800",fontWeight:700}}>✦</div>
+        <div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:700}}>Studio</div>
+          <div style={{fontSize:9.5,color:"var(--text3)",letterSpacing:".09em",textTransform:"uppercase"}}>@dr.marcorego.oftalmologia</div>
+        </div>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:"var(--amber)",boxShadow:"0 0 6px var(--amber)",animation:"pulse 2s infinite"}}/>
+          <span style={{fontSize:9.5,color:"var(--amber)",fontFamily:"'DM Mono',monospace",letterSpacing:".06em"}}>IA ATIVA</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{overflowY:"auto",height:"calc(100vh - 64px - env(safe-area-inset-top,0px))"}}>
+        {content[tab]}
+      </div>
+
+      <TabBar active={tab} setActive={setTab}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
